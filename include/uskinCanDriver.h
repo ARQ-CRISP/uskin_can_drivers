@@ -2,87 +2,82 @@
 #define USKINCANDRIVER_H
 
 #include <iostream>
+#include <cstdio>
 #include <array>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
+#include <memory>
 
 #include <vector>
 
-#include <net/if.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
-#include <sys/types.h>
+#include "can_communication.h" // Our library for can communication
 
-#include <linux/can.h>
-#include <linux/can/raw.h>
+//#define DEBUG 1
 
-#define DEBUG 0
+#define USKIN_ROWS 4
+#define USKIN_COLUMNS 6
 
-void input_log(std::string message);
+unsigned int convert_16bit_hex_to_dec(__u8 *data);
 
-void output_log(std::string message);
+unsigned long convert_32bit_hex_to_dec(__u32 *data);
 
-unsigned int convert_16bit_hex_to_dec(__u8 * data);
+unsigned int convert_dec_to_16bit_hex_(__u8 *data);
 
-unsigned long convert_32bit_hex_to_dec(__u32 * data);
+unsigned long convert_dec_to_32bit_hex(__u32 *data);
 
-struct _single_node_reading
+struct uskin_time_unit_reading
 {
-  __u32 id;
-  unsigned int x_data;
-  unsigned int y_data;
-  unsigned int z_data;
+  time_t timesptamp;
+  struct _uskin_node_time_unit_reading *instant_reading;
+  int number_of_nodes;
 };
-/* typedef struct uksin_x_values
+
+struct _uskin_node_time_unit_reading
 {
-  std::array<unsigned int, > x_val:
-} Uskin_x_values;
+  __u32 node_id;
+  int x_value;
+  int y_value;
+  int z_value;
+};
 
-typedef struct uskin_matrix{
-  unsigned int 
-}  */
-
-class UskinCanDriver
+class UskinSensor
 {
   // Access specifier
-  private:
-    int s;
-	  struct sockaddr_can addr;
-	  struct ifreq ifr;
 
-    const char *ifname = "can0";
+private:
+  const int frame_size;
 
-    bool data_requested = false;
+  const int frame_columns;
 
-    bool is_filter_set = false; // check if there is any filter applied to the socket (incoming data)
+  const int frame_rows;
 
-    void send_message(can_frame sending_frame);
-    int read_message(can_frame * receiving_frame);
+  std::string log_file = "uSkinCanDriver_log.output";
 
+  CanDriver *driver;
 
-  public:
-    UskinCanDriver();
-    ~UskinCanDriver();
+  int sensor_has_started = 0;
 
-    int open_connection();
+public:
+  UskinSensor();
+  UskinSensor(int column_nodes, int row_nodes);
+  ~UskinSensor();
 
-    void request_data(__u32 can_id);
+  int StartSensor();
+  int StopSensor();
+  int GetUskinFrameSize();
+  int NormalizeData(); // Leaving the sensor untouched for a period of time
 
-    void stop_data(__u32 can_id);
-    void read_data(std::vector <struct _single_node_reading> * instant_reading);
-    //void read_data(struct can_filter * rfilter, long number_of_filters);
+  void GetFrameData_xyzValues(uskin_time_unit_reading * frame_reading);
+  uskin_time_unit_reading *GetFrameData_xValues();
+  uskin_time_unit_reading *GetFrameData_yValues();
+  uskin_time_unit_reading *GetFrameData_zValues();
 
-    void get_data(unsigned int (&matrix_xyz_values)[4][6][3]);
-
-    void get_data_x_values(unsigned int (&matrix_xyz_values)[4][6]);
-    void get_data_y_values();
-    void get_data_z_values();
-
-
-
+  uskin_time_unit_reading *GetNodeData_xyzValues(int node); // TODO convert node to 16bit hex
+  uskin_time_unit_reading *GetNodeData_xValues(int node);   // TODO convert node to 16bit hex
+  uskin_time_unit_reading *GetNodeData_yValues(int node);   // TODO convert node to 16bit hex
+  uskin_time_unit_reading *GetNodeData_zValues(int node);   // TODO convert node to 16bit hex
 };
 
 #endif

@@ -5,3 +5,11 @@
 *.swp
 *.swo
 
+#Object files
+*.o
+
+#Logging files
+*.output
+
+#Compiled files
+main
