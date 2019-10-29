@@ -2,27 +2,33 @@ CC=gcc
 CXX=g++
 RM=rm -f
 CPPFLAGS=-g $(root-config --cflags) -std=c++11
-PY_CFLAGS := $(shell python2.7-config --cflags)
-PY_LDFLAGS := $(shell python2.7-config --ldflags)
 LDFLAGS=-g $(root-config --ldflags)
 
-LDLIBS=$(root-config --libs) -I/usr/include/python2.7 -lpython2.7
+LDLIBS=$(root-config --libs)
 
-SRCS=uskinCanDriver.cpp main.cpp
+INCLUDELIBS=../include
+
+SRCS= can_communication.cpp uskinCanDriver.cpp main.cpp
 OBJS=$(subst .cpp,.o,$(SRCS))
 
 uskinCanDriver: $(OBJS)
-	$(CXX) $(LDFLAGS) $(PY_LDFLAGS) -o main $(OBJS) $(LDLIBS) 
+	$(CXX) $(LDFLAGS) -o main $(OBJS) $(LDLIBS) 
 
-uskinCanDriver.o: uskinCanDriver.cpp uskinCanDriver.h
-	$(CXX) $(CPPFLAGS) -c uskinCanDriver.cpp
+can_communication.o: $(INCLUDELIBS)/can_communication.cpp $(INCLUDELIBS)/can_communication.h
+	$(CXX) $(CPPFLAGS) -c $(INCLUDELIBS)/can_communication.cpp
+
+uskinCanDriver.o: $(INCLUDELIBS)/uskinCanDriver.cpp $(INCLUDELIBS)/uskinCanDriver.h 
+	$(CXX) $(CPPFLAGS) -c $(INCLUDELIBS)/uskinCanDriver.cpp
 
 main.o: main.cpp 
-	$(CXX) $(CPPFLAGS) $(PY_CFLAGS) -c main.cpp
+	$(CXX) $(CPPFLAGS) -c main.cpp
 
 
 clean:
 	$(RM) $(OBJS)
 
 distclean: clean
-	$(RM) uskinCanDriver
+	$(RM) can_communication
+
+logclean:
+	$(RM) CanDriver_log.output uSkinCanDriver_log.output
