@@ -1,6 +1,6 @@
 #include <string>
 #include <iostream>
-#include "uskinCanDriver.h"
+#include "../include/uskinCanDriver.h"
 
 unsigned int convert_16bit_hex_to_dec(__u8 *data)
 {
