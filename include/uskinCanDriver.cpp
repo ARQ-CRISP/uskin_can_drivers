@@ -14,7 +14,7 @@ unsigned long convert_32bit_hex_to_dec(__u32 *data)
   return long(data[0] << 16 | data[1] << 8 | data[2]);
 }
 
-void storeNodeReading(struct _uskin_node_time_unit_reading * node_reading, struct can_frame *raw_node_reading)
+void storeNodeReading(struct _uskin_node_time_unit_reading *node_reading, struct can_frame *raw_node_reading)
 {
   node_reading->node_id = raw_node_reading->can_id;
   node_reading->x_value = convert_16bit_hex_to_dec(&raw_node_reading->data[1]);
@@ -36,6 +36,9 @@ UskinSensor::UskinSensor() : frame_columns(USKIN_COLUMNS), frame_rows(USKIN_ROWS
 
   driver = new CanDriver;
 
+  frame_reading = new uskin_time_unit_reading;
+  frame_reading->instant_reading = new struct _uskin_node_time_unit_reading[frame_size];
+
   return;
 };
 
@@ -46,9 +49,21 @@ UskinSensor::UskinSensor(int column_nodes, int row_nodes) : frame_columns(column
 
   driver = new CanDriver;
 
+  frame_reading = new uskin_time_unit_reading;
+  frame_reading->instant_reading = new struct _uskin_node_time_unit_reading[frame_size];
+
   return;
 };
-UskinSensor::~UskinSensor(){};
+
+UskinSensor::~UskinSensor()
+{
+  delete driver;
+  delete frame_reading->instant_reading;
+  delete frame_reading;
+
+  if (data_is_being_saved)
+    myfile.close();
+};
 
 int UskinSensor::StartSensor()
 {
@@ -57,6 +72,8 @@ int UskinSensor::StartSensor()
 
   if (driver->openConnection() && driver->requestData())
   {
+
+    CalibrateSensor();
     logInfo(2, "The sensor has started successfully!");
 
     sensor_has_started = 1;
@@ -92,16 +109,24 @@ int UskinSensor::GetUskinFrameSize()
   return frame_size;
 };
 
-int UskinSensor::NormalizeData(){}; // Leaving the sensor untouched for a period of time
+void UskinSensor::CalibrateSensor() // Leaving the sensor untouched for a period of time
+{
+  logInfo(1, ">> UskinSensor::CalibrateSensor()");
 
-void UskinSensor::GetFrameData_xyzValues(uskin_time_unit_reading * frame_reading)
+  is_sensor_calibrated = 1;
+  // Improve min values per node
+  //float norm = (((float)reading->back().z_data - 18300)/ (25500 - 18300))*100;
+  logInfo(1, "<< UskinSensor::CalibrateSensor()");
+};
+
+void UskinSensor::GetFrameData_xyzValues()
 {
   logInfo(1, ">> UskinSensor::GetFrameData_xyzValues()");
 
   struct can_frame *raw_data[frame_size];
   time_t timer;
 
-  //std::shared_ptr<struct can_frame **> raw_data = std::make_shared<struct can_frame **> ;
+  frame_reading->clear();
 
   if (!sensor_has_started)
   {
@@ -117,7 +142,9 @@ void UskinSensor::GetFrameData_xyzValues(uskin_time_unit_reading * frame_reading
   }
 
   frame_reading->number_of_nodes = frame_size;
-  frame_reading->timesptamp = time(&timer);
+  frame_reading->timestamp = time(&timer);
+
+  SaveData();
 
   //raw_data.reset();
 
@@ -135,3 +162,70 @@ uskin_time_unit_reading *UskinSensor::GetNodeData_xyzValues(int node){}; // TODO
 uskin_time_unit_reading *UskinSensor::GetNodeData_xValues(int node){}; // TODO convert node to 16bit hex
 uskin_time_unit_reading *UskinSensor::GetNodeData_yValues(int node){}; // TODO convert node to 16bit hex
 uskin_time_unit_reading *UskinSensor::GetNodeData_zValues(int node){}; // TODO convert node to 16bit hex
+
+void UskinSensor::PrintData()
+{
+  logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp))) + "\n");
+
+  for (int i = 0; i < frame_reading->number_of_nodes; i++)
+  {
+    std::stringstream message;
+
+    message << "CAN ID: " << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "  X:  " << frame_reading->instant_reading[i].x_value << "  Y:  " << frame_reading->instant_reading[i].y_value << "  Z:  " << frame_reading->instant_reading[i].z_value << std::endl;
+    logInfo(4, message.str());
+  }
+
+  return;
+}
+
+void UskinSensor::SaveData()
+{
+  if (data_is_being_saved) // Data is already being saved
+  {
+    logInfo(1, ">> UskinSensor::SaveData()");
+
+    if (is_sensor_calibrated)
+      frame_reading->normalize();
+
+    for (int i = 0; i < frame_reading->number_of_nodes; i++)
+    {
+      myfile << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "," << frame_reading->instant_reading[i].x_value << "," << frame_reading->instant_reading[i].y_value << "," << frame_reading->instant_reading[i].z_value << "," << std::string(asctime(gmtime(&frame_reading->timestamp)));
+    }
+
+    logInfo(1, "Data has been recorded");
+
+    logInfo(1, "<< UskinSensor::SaveData()");
+  }
+  else
+  {
+      PrintData();
+  }
+  
+  return;
+}
+
+void UskinSensor::SaveData(std::string filename)
+{
+  logInfo(1, ">> UskinSensor::SaveData()");
+
+  if (!data_is_being_saved)
+  {
+    //printf("%s, %ld \n", filename.c_str(), filename.size());
+
+    if (!filename.compare(filename.size() - 3, 4, ".csv"))
+    {
+      logError(3, "Filename must be of .csv type");
+      return;
+    }
+
+    myfile.open(filename);
+
+    myfile << "CAN ID, X Values,Y Values, Z Values, Timestamp\n";
+
+    data_is_being_saved = 1;
+  }
+
+  logInfo(1, "<< UskinSensor::SaveData()");
+
+  return;
+}

@@ -227,8 +227,8 @@ void CanDriver::readData(can_frame ** receiving_frame, int frame_size)
         {
             logError(2, "Problems reading data");
         }
-        else
-            logInfo(2, canFrameToString(receiving_frame[i]));
+        /* else
+            logInfo(2, canFrameToString(receiving_frame[i])); */
     }
     /* 
             struct _single_node_reading reading;

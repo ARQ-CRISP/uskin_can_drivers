@@ -26,10 +26,8 @@
 int main()
 {
 
-  UskinSensor uskin; // Will connect to "can0" device by default
-
-  uskin_time_unit_reading *frame_reading = new uskin_time_unit_reading;
-  frame_reading->instant_reading = new struct _uskin_node_time_unit_reading[uskin.GetUskinFrameSize()];
+  UskinSensor * uskin = new UskinSensor; // Will connect to "can0" device by default
+  time_t timer;
 
   // Used if we wish to filter incoming messages
   /*  struct can_filter rfilter[1];
@@ -38,20 +36,27 @@ int main()
   rfilter[0].can_mask = CAN_SFF_MASK; */
   //rfilter[1].can_id   = 0x101;
   //rfilter[1].can_mask = CAN_SFF_MASK;
+  time(&timer);
+  uskin->SaveData("uskin_data_"+ std::to_string(timer) + ".csv"); //Only called once, will save output to a csv file
 
-  if (uskin.StartSensor())
+
+  if (uskin->StartSensor())
   {
-    uskin.GetFrameData_xyzValues(frame_reading);
-    uskin.StopSensor();
+    uskin->CalibrateSensor(); // Calibrates sensor and data is stored normalized
+    uskin->GetFrameData_xyzValues(); // Get data. If SavaData was called, data is stored in file
+    //uskin->PrintData();
+
+    sleep(2);
+
+    uskin->GetFrameData_xyzValues();
+
+
+    uskin->StopSensor();
   }
 
-  for (int i = 0; i < frame_reading->number_of_nodes; i++)
-  {
-    std::cout << "Received message from device with CAN ID: " << std::hex << frame_reading->instant_reading[i].node_id << std::endl;
-    std::cout << std::dec << "  With x value:  " << frame_reading->instant_reading[i].x_value << 
-                 "  With y value:  " << frame_reading->instant_reading[i].y_value <<
-                 "  With z value:  " << frame_reading->instant_reading[i].z_value << std::endl;
-  }
+  delete uskin;
+
+
 
   /*  while(true)
   {
