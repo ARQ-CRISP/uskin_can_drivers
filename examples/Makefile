@@ -6,7 +6,8 @@ LDFLAGS=-g $(root-config --ldflags)
 
 LDLIBS=$(root-config --libs)
 
-INCLUDELIBS=../include
+INCLUDEDIR=../include
+INCLUDESRC=../src
 
 SRCS= can_communication.cpp uskinCanDriver.cpp main.cpp
 OBJS=$(subst .cpp,.o,$(SRCS))
@@ -14,11 +15,11 @@ OBJS=$(subst .cpp,.o,$(SRCS))
 uskinCanDriver: $(OBJS)
 	$(CXX) $(LDFLAGS) -o main $(OBJS) $(LDLIBS) 
 
-can_communication.o: $(INCLUDELIBS)/can_communication.cpp $(INCLUDELIBS)/can_communication.h
-	$(CXX) $(CPPFLAGS) -c $(INCLUDELIBS)/can_communication.cpp
+can_communication.o: $(INCLUDESRC)/can_communication.cpp $(INCLUDEDIR)/can_communication.h
+	$(CXX) $(CPPFLAGS) -c $(INCLUDESRC)/can_communication.cpp
 
-uskinCanDriver.o: $(INCLUDELIBS)/uskinCanDriver.cpp $(INCLUDELIBS)/uskinCanDriver.h 
-	$(CXX) $(CPPFLAGS) -c $(INCLUDELIBS)/uskinCanDriver.cpp
+uskinCanDriver.o: $(INCLUDESRC)/uskinCanDriver.cpp $(INCLUDEDIR)/uskinCanDriver.h 
+	$(CXX) $(CPPFLAGS) -c $(INCLUDESRC)/uskinCanDriver.cpp
 
 main.o: main.cpp 
 	$(CXX) $(CPPFLAGS) -c main.cpp
