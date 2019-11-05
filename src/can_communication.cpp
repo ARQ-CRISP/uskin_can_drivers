@@ -149,6 +149,8 @@ int CanDriver::readMessage(can_frame *receiving_frame)
         return 0;
     }
 
+    logInfo(2, canFrameToString(receiving_frame));
+
     logInfo(2, "<< CanDriver::read_message()");
 
     return 1;
@@ -200,7 +202,7 @@ void CanDriver::stopData()
     return;
 }
 
-void CanDriver::readData(can_frame ** receiving_frame, int frame_size)
+void CanDriver::readData(can_frame **receiving_frame, int frame_size)
 {
     logInfo(1, ">> CanDriver::read_data()");
 
@@ -230,14 +232,6 @@ void CanDriver::readData(can_frame ** receiving_frame, int frame_size)
         /* else
             logInfo(2, canFrameToString(receiving_frame[i])); */
     }
-    /* 
-            struct _single_node_reading reading;
-            reading.id = receiving_frame.can_id;
-            //reading.id = convert_32bit_hex_to_dec((__u32*)&receiving_frame.can_id);
-            reading.x_data = convert_16bit_hex_to_dec(&receiving_frame.data[1]);
-            reading.y_data = convert_16bit_hex_to_dec(&receiving_frame.data[3]);
-            reading.z_data = convert_16bit_hex_to_dec(&receiving_frame.data[5]);
- */
 
     logInfo(1, "<< CanDriver::read_data()");
 
