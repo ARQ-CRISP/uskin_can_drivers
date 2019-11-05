@@ -38,7 +38,7 @@ private:
     struct sockaddr_can addr;
     struct ifreq ifr;
 
-    std::string log_file = "CanDriver_log.output";
+    std::string log_file = "/home/rodrigo/Documents/github/uskin_publisher/src/uskin_ros_publisher/log_files/CanDriver_log.output";
 
     std::string ifname = "can0"; // By default
 

@@ -8,15 +8,10 @@ unsigned int convert_16bit_hex_to_dec(__u8 *data)
   return long(data[0] << 8 | data[1]);
 }
 
-unsigned long convert_32bit_hex_to_dec(__u32 *data)
-{
-  // We will always be converting Hex MSB and LSB (2 bytes) to Dec
-  return long(data[0] << 16 | data[1] << 8 | data[2]);
-}
-
-void storeNodeReading(struct _uskin_node_time_unit_reading *node_reading, struct can_frame *raw_node_reading)
+void storeNodeReading(struct _uskin_node_time_unit_reading *node_reading, struct can_frame *raw_node_reading, int sequence)
 {
   node_reading->node_id = raw_node_reading->can_id;
+  node_reading->sequence = sequence;
   node_reading->x_value = convert_16bit_hex_to_dec(&raw_node_reading->data[1]);
   node_reading->y_value = convert_16bit_hex_to_dec(&raw_node_reading->data[3]);
   node_reading->z_value = convert_16bit_hex_to_dec(&raw_node_reading->data[5]);
@@ -61,8 +56,19 @@ UskinSensor::~UskinSensor()
   delete frame_reading->instant_reading;
   delete frame_reading;
 
+  if (get_sensor_calibration_status())
+  {
+    for (int i = 0; i < frame_size; i++)
+    {
+      delete frame_min_reads[i];
+      // delete frame_max_reads[i];
+    }
+    delete frame_min_reads;
+    // delete frame_max_reads;
+  }
+
   if (data_is_being_saved)
-    myfile.close();
+    csv_file.close();
 };
 
 int UskinSensor::StartSensor()
@@ -73,7 +79,7 @@ int UskinSensor::StartSensor()
   if (driver->openConnection() && driver->requestData())
   {
 
-    CalibrateSensor();
+    //CalibrateSensor();
     logInfo(2, "The sensor has started successfully!");
 
     sensor_has_started = 1;
@@ -113,18 +119,69 @@ void UskinSensor::CalibrateSensor() // Leaving the sensor untouched for a period
 {
   logInfo(1, ">> UskinSensor::CalibrateSensor()");
 
-  is_sensor_calibrated = 1;
+  logInfo(2, "Please do not touch the sensor while it is being calibrated!");
+
+  if (!get_sensor_status())
+  {
+    logError(2, "You must start the sensor first!!");
+    sensor_is_calibrated = 0; // Start by disabling the flag so that data retrieved is not normalized
+
+    sensor_is_calibrated = 1;
+
+    logInfo(1, "<< UskinSensor::CalibrateSensor()");
+
+    return;
+  }
+
+  if (get_sensor_calibration_status())
+  {
+  }
+  else // first time calibrating the sensor, structures need to be allocated
+  {
+    frame_min_reads_size = frame_size;
+    frame_min_reads = (unsigned long int **)std::malloc(frame_min_reads_size * sizeof(unsigned long int *));
+    //frame_max_reads = (unsigned long int **)std::malloc(frame_size * sizeof(unsigned long int *));
+
+    for (int i = 0; i < frame_min_reads_size; i++)
+    {
+      frame_min_reads[i] = new unsigned long int[3]{65000, 65000, 65000};
+      //frame_max_reads[i] = new unsigned long int[3]();
+    }
+
+    for (int i = 0; i < 10; i++) // We'll read 10 frames of the sensor and save the minium value acuqired for each node
+    {
+      RetrieveFrameData();
+      for (int i = 0; i < frame_min_reads_size; i++)
+      {
+
+        if (frame_reading->instant_reading[i].x_value < frame_min_reads[i][0])
+          frame_min_reads[i][0] = frame_reading->instant_reading[i].x_value; //Minimum x value for node i
+        if (frame_reading->instant_reading[i].y_value < frame_min_reads[i][1])
+          frame_min_reads[i][1] = frame_reading->instant_reading[i].y_value; //Minimum y value for node i
+        if (frame_reading->instant_reading[i].z_value < frame_min_reads[i][2])
+          frame_min_reads[i][2] = frame_reading->instant_reading[i].z_value; //Minimum z value for node i
+
+        /* if (frame_reading->instant_reading[i].x_value > frame_max_reads[i][0])
+          frame_min_reads[i][0] = frame_reading->instant_reading[i].x_value; //Maximum x value for node i
+        if (frame_reading->instant_reading[i].y_value > frame_max_reads[i][1])
+          frame_min_reads[i][1] = frame_reading->instant_reading[i].y_value; //Maximum y value for node i
+        if (frame_reading->instant_reading[i].z_value > frame_max_reads[i][2])
+          frame_min_reads[i][2] = frame_reading->instant_reading[i].z_value; //Maximum z value for node i */
+      }
+    }
+  }
+
+  sensor_is_calibrated = 1;
   // Improve min values per node
   //float norm = (((float)reading->back().z_data - 18300)/ (25500 - 18300))*100;
   logInfo(1, "<< UskinSensor::CalibrateSensor()");
 };
 
-void UskinSensor::GetFrameData_xyzValues()
+void UskinSensor::RetrieveFrameData()
 {
   logInfo(1, ">> UskinSensor::GetFrameData_xyzValues()");
 
   struct can_frame *raw_data[frame_size];
-  time_t timer;
 
   frame_reading->clear();
 
@@ -138,11 +195,17 @@ void UskinSensor::GetFrameData_xyzValues()
 
   for (int i = 0; i < frame_size; i++)
   {
-    storeNodeReading(&frame_reading->instant_reading[i], raw_data[i]);
+    storeNodeReading(&frame_reading->instant_reading[i], raw_data[i], i);
   }
 
   frame_reading->number_of_nodes = frame_size;
-  frame_reading->timestamp = time(&timer);
+  gettimeofday(&frame_reading->timestamp, NULL);
+
+  if (get_sensor_calibration_status()) // If sensor was calibrated, normalize values
+  {
+    logInfo(2, "Attempting to normalize uskin frame readings...");
+    frame_reading->normalize();
+  }
 
   SaveData();
 
@@ -153,19 +216,36 @@ void UskinSensor::GetFrameData_xyzValues()
   return;
 };
 
-uskin_time_unit_reading *UskinSensor::GetFrameData_xValues(){};
-uskin_time_unit_reading *UskinSensor::GetFrameData_yValues(){};
-uskin_time_unit_reading *UskinSensor::GetFrameData_zValues(){};
+//uskin_time_unit_reading *UskinSensor::GetFrameData_xyzValues(){};
 
-uskin_time_unit_reading *UskinSensor::GetNodeData_xyzValues(int node){}; // TODO convert node to 16bit hex
+_uskin_node_time_unit_reading *UskinSensor::GetNodeData_xyzValues(int node)
+{
+  logInfo(1, ">> UskinSensor::GetNodeData_xyzValues(" + std::to_string(node) + ")");
 
-uskin_time_unit_reading *UskinSensor::GetNodeData_xValues(int node){}; // TODO convert node to 16bit hex
-uskin_time_unit_reading *UskinSensor::GetNodeData_yValues(int node){}; // TODO convert node to 16bit hex
-uskin_time_unit_reading *UskinSensor::GetNodeData_zValues(int node){}; // TODO convert node to 16bit hex
+  if (node >= frame_size)
+  {
+    logError(2, "Specified node index is to high. uSkin frame_size is" + std::to_string(frame_size));
+    return NULL;
+  }
+
+  logInfo(1, "<< UskinSensor::GetNodeData_xyzValues(" + std::to_string(node) + ")");
+
+  return &frame_reading->instant_reading[node];
+};
+
+// uskin_time_unit_reading *UskinSensor::GetFrameData_xValues(){};
+
+// uskin_time_unit_reading *UskinSensor::GetFrameData_yValues(){};
+
+// uskin_time_unit_reading *UskinSensor::GetFrameData_zValues(){};
+
+uskin_time_unit_reading *UskinSensor::GetNodeData_xValues(int node){}; // TODO
+uskin_time_unit_reading *UskinSensor::GetNodeData_yValues(int node){}; // TODO
+uskin_time_unit_reading *UskinSensor::GetNodeData_zValues(int node){}; // TODO
 
 void UskinSensor::PrintData()
 {
-  logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp))) + "\n");
+  logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp.tv_sec))) + "." + std::to_string(frame_reading->timestamp.tv_usec) + "\n");
 
   for (int i = 0; i < frame_reading->number_of_nodes; i++)
   {
@@ -180,27 +260,38 @@ void UskinSensor::PrintData()
 
 void UskinSensor::SaveData()
 {
+  logInfo(1, ">> UskinSensor::SaveData()");
+
   if (data_is_being_saved) // Data is already being saved
   {
-    logInfo(1, ">> UskinSensor::SaveData()");
+    struct tm *timeinfo;
+    char time_str[20];
 
-    if (is_sensor_calibrated)
-      frame_reading->normalize();
+    timeinfo = localtime(&frame_reading->timestamp.tv_sec);
+    strftime(time_str, 20, "%F_%T", timeinfo);
+    csv_file << std::string(time_str) << "." << std::to_string(frame_reading->timestamp.tv_usec);
 
     for (int i = 0; i < frame_reading->number_of_nodes; i++)
     {
-      myfile << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "," << frame_reading->instant_reading[i].x_value << "," << frame_reading->instant_reading[i].y_value << "," << frame_reading->instant_reading[i].z_value << "," << std::string(asctime(gmtime(&frame_reading->timestamp)));
+      csv_file << "," << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "," << frame_reading->instant_reading[i].x_value << "," << frame_reading->instant_reading[i].y_value << "," << frame_reading->instant_reading[i].z_value;
     }
 
-    logInfo(1, "Data has been recorded");
+    csv_file << std::endl;
 
-    logInfo(1, "<< UskinSensor::SaveData()");
+    logInfo(2, "Data has been recorded");
+
   }
+  /*   else // No csv file was opened, printing the data to log file
+  {
+    PrintData();
+  } */
   else
   {
-      PrintData();
+    logError(2, "No CSV file has been opened yet!");
   }
-  
+
+  logInfo(1, "<< UskinSensor::SaveData()");
+
   return;
 }
 
@@ -218,9 +309,15 @@ void UskinSensor::SaveData(std::string filename)
       return;
     }
 
-    myfile.open(filename);
+    csv_file.open("/home/rodrigo/Documents/github/uskin_publisher/src/uskin_ros_publisher/csv_files/" + filename);
 
-    myfile << "CAN ID, X Values,Y Values, Z Values, Timestamp\n";
+    csv_file << "Timestamp";
+
+    for (int i = 0; i < frame_size; i++)
+    {
+      csv_file << ",CAN ID, X Values,Y Values, Z Values";
+    }
+    csv_file << std::endl;
 
     data_is_being_saved = 1;
   }
@@ -228,4 +325,31 @@ void UskinSensor::SaveData(std::string filename)
   logInfo(1, "<< UskinSensor::SaveData()");
 
   return;
+}
+
+bool UskinSensor::get_sensor_status()
+{
+  logInfo(1, ">> UskinSensor::get_sensor_status()");
+
+  logInfo(1, "<< UskinSensor::get_sensor_status()");
+
+  return sensor_has_started == 1 ? true : false;
+}
+
+bool UskinSensor::get_sensor_calibration_status()
+{
+  logInfo(1, ">> UskinSensor::get_sensor_calibration_status()");
+
+  logInfo(1, "<< UskinSensor::get_sensor_calibration_status()");
+
+  return sensor_is_calibrated == 1 ? true : false;
+}
+
+bool UskinSensor::get_sensor_saved_data_status()
+{
+  logInfo(1, ">> UskinSensor::get_sensor_saved_data_status()");
+
+  logInfo(1, "<< UskinSensor::get_sensor_saved_data_status()");
+
+  return data_is_being_saved == 1 ? true : false;
 }
