@@ -161,6 +161,8 @@ public:
   bool get_sensor_calibration_status();
 
   bool get_sensor_saved_data_status();
+  
+  void retrieveSensorMinMaxReadings(int number_of_readings);
 };
 
 #endif

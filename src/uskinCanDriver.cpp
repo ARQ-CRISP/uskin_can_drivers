@@ -24,6 +24,32 @@ void storeNodeReading(struct _uskin_node_time_unit_reading *node_reading, struct
   delete raw_node_reading;
 }
 
+void UskinSensor::retrieveSensorMinMaxReadings(int number_of_readings)
+{
+  for (int i = 0; i < number_of_readings; i++) // We'll read 10 frames of the sensor and save the minium value acuqired for each node
+    {
+      RetrieveFrameData();
+      for (int i = 0; i < frame_min_reads_size; i++)
+      {
+
+        if (frame_reading->instant_reading[i].x_value < frame_min_reads[i][0])
+          frame_min_reads[i][0] = frame_reading->instant_reading[i].x_value; //Minimum x value for node i
+        if (frame_reading->instant_reading[i].y_value < frame_min_reads[i][1])
+          frame_min_reads[i][1] = frame_reading->instant_reading[i].y_value; //Minimum y value for node i
+        if (frame_reading->instant_reading[i].z_value < frame_min_reads[i][2])
+          frame_min_reads[i][2] = frame_reading->instant_reading[i].z_value; //Minimum z value for node i
+
+        /* if (frame_reading->instant_reading[i].x_value > frame_max_reads[i][0])
+          frame_min_reads[i][0] = frame_reading->instant_reading[i].x_value; //Maximum x value for node i
+        if (frame_reading->instant_reading[i].y_value > frame_max_reads[i][1])
+          frame_min_reads[i][1] = frame_reading->instant_reading[i].y_value; //Maximum y value for node i
+        if (frame_reading->instant_reading[i].z_value > frame_max_reads[i][2])
+          frame_min_reads[i][2] = frame_reading->instant_reading[i].z_value; //Maximum z value for node i */
+      }
+    }
+  return;
+}
+
 UskinSensor::UskinSensor() : frame_columns(USKIN_COLUMNS), frame_rows(USKIN_ROWS), frame_size(USKIN_COLUMNS * USKIN_ROWS)
 {
   if (DEBUG)
@@ -124,17 +150,19 @@ void UskinSensor::CalibrateSensor() // Leaving the sensor untouched for a period
   if (!get_sensor_status())
   {
     logError(2, "You must start the sensor first!!");
-    sensor_is_calibrated = 0; // Start by disabling the flag so that data retrieved is not normalized
-
-    sensor_is_calibrated = 1;
 
     logInfo(1, "<< UskinSensor::CalibrateSensor()");
 
     return;
   }
 
-  if (get_sensor_calibration_status())
+  if (get_sensor_calibration_status()) // Sensor has already been calibrated once, so structures have already been created
   {
+    sensor_is_calibrated = 0; // Start by disabling the flag so that data retrieved is not normalized
+
+    retrieveSensorMinMaxReadings(10);
+
+    sensor_is_calibrated = 1;
   }
   else // first time calibrating the sensor, structures need to be allocated
   {
@@ -148,27 +176,8 @@ void UskinSensor::CalibrateSensor() // Leaving the sensor untouched for a period
       //frame_max_reads[i] = new unsigned long int[3]();
     }
 
-    for (int i = 0; i < 10; i++) // We'll read 10 frames of the sensor and save the minium value acuqired for each node
-    {
-      RetrieveFrameData();
-      for (int i = 0; i < frame_min_reads_size; i++)
-      {
+    retrieveSensorMinMaxReadings(10);
 
-        if (frame_reading->instant_reading[i].x_value < frame_min_reads[i][0])
-          frame_min_reads[i][0] = frame_reading->instant_reading[i].x_value; //Minimum x value for node i
-        if (frame_reading->instant_reading[i].y_value < frame_min_reads[i][1])
-          frame_min_reads[i][1] = frame_reading->instant_reading[i].y_value; //Minimum y value for node i
-        if (frame_reading->instant_reading[i].z_value < frame_min_reads[i][2])
-          frame_min_reads[i][2] = frame_reading->instant_reading[i].z_value; //Minimum z value for node i
-
-        /* if (frame_reading->instant_reading[i].x_value > frame_max_reads[i][0])
-          frame_min_reads[i][0] = frame_reading->instant_reading[i].x_value; //Maximum x value for node i
-        if (frame_reading->instant_reading[i].y_value > frame_max_reads[i][1])
-          frame_min_reads[i][1] = frame_reading->instant_reading[i].y_value; //Maximum y value for node i
-        if (frame_reading->instant_reading[i].z_value > frame_max_reads[i][2])
-          frame_min_reads[i][2] = frame_reading->instant_reading[i].z_value; //Maximum z value for node i */
-      }
-    }
   }
 
   sensor_is_calibrated = 1;
@@ -208,8 +217,6 @@ void UskinSensor::RetrieveFrameData()
   }
 
   SaveData();
-
-  //raw_data.reset();
 
   logInfo(1, "<< UskinSensor::GetFrameData_xyzValues()");
 
