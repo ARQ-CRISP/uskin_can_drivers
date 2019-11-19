@@ -8,6 +8,13 @@ unsigned int convert_16bit_hex_to_dec(__u8 *data)
   return long(data[0] << 8 | data[1]);
 }
 
+void NormalizeData(uskin_time_unit_reading *frame)
+{
+  
+  frame->normalize();
+  return;
+}
+
 void storeNodeReading(struct _uskin_node_time_unit_reading *node_reading, struct can_frame *raw_node_reading, int sequence)
 {
   node_reading->node_id = raw_node_reading->can_id;
@@ -213,7 +220,7 @@ void UskinSensor::RetrieveFrameData()
   if (get_sensor_calibration_status()) // If sensor was calibrated, normalize values
   {
     logInfo(2, "Attempting to normalize uskin frame readings...");
-    frame_reading->normalize();
+    // frame_reading->normalize();
   }
 
   SaveData();
@@ -236,6 +243,8 @@ _uskin_node_time_unit_reading *UskinSensor::GetNodeData_xyzValues(int node)
   }
 
   logInfo(1, "<< UskinSensor::GetNodeData_xyzValues(" + std::to_string(node) + ")");
+  
+  // logInfo(2, "================================================" + frame_reading->instant_reading[node].to_str());
 
   return &frame_reading->instant_reading[node];
 };

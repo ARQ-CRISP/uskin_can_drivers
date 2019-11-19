@@ -58,7 +58,7 @@ struct _uskin_node_time_unit_reading
       y_value = (((float)y_value - frame_min_reads[sequence][1]) / (YNODEMAXREAD - frame_min_reads[sequence][1])) * 100;
       z_value = (((float)z_value - frame_min_reads[sequence][2]) / (ZNODEMAXREAD - frame_min_reads[sequence][2])) * 100;
       if (z_value < 0)
-        z_value = 0; // Force Z to be above 0. Z would only get negative values if a node is being "pulled", which should not happen 
+        z_value = 0; // Force Z to be above 0. Z would only get negative values if a node is being "pulled", which should not happen
     }
   }
 
@@ -105,6 +105,8 @@ struct uskin_time_unit_reading
   }
 };
 
+void NormalizeData(uskin_time_unit_reading *frame);
+
 class UskinSensor
 {
   // Access specifier
@@ -142,6 +144,7 @@ public:
   void CalibrateSensor(); // Leaving the sensor untouched for a period of time
 
   void RetrieveFrameData();
+
   //uskin_time_unit_reading * GetFrameData_xyzValues();
   _uskin_node_time_unit_reading *GetNodeData_xyzValues(int node);
   uskin_time_unit_reading *GetFrameData_xValues();
@@ -161,7 +164,7 @@ public:
   bool get_sensor_calibration_status();
 
   bool get_sensor_saved_data_status();
-  
+
   void retrieveSensorMinMaxReadings(int number_of_readings);
 };
 
