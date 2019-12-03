@@ -3,19 +3,67 @@
 CanDriver::CanDriver()
 {
     if (DEBUG)
-        freopen((char *)log_file.c_str(), "w", stdout);
+    {
+        time_t timer;
+        struct tm *timeinfo;
+        std::stringstream csv_name;
+        char time_string[20];
+
+        csv_name << log_file << "_";
+        
+        time(&timer);
+        timeinfo = localtime(&timer);
+        strftime(time_string, 20, "%F_%T", timeinfo);
+        
+        csv_name << time_string;
+
+        freopen((char *)csv_name.str().c_str(), "w", stdout);
+
+    }
 };
 CanDriver::CanDriver(std::string new_network)
 {
     if (DEBUG)
-        freopen((char *)log_file.c_str(), "w", stdout);
+    {
+        time_t timer;
+        struct tm *timeinfo;
+        std::stringstream csv_name;
+        char time_string[20];
+
+        csv_name << log_file << "_";
+        
+        time(&timer);
+        timeinfo = localtime(&timer);
+        strftime(time_string, 20, "%F_%T", timeinfo);
+        
+        csv_name << time_string;
+
+        freopen((char *)csv_name.str().c_str(), "w", stdout);
+
+    }
 
     ifname.assign(new_network);
 };
 CanDriver::CanDriver(std::string new_network, __u32 new_device_id)
 {
     if (DEBUG)
-        freopen((char *)log_file.c_str(), "w", stdout);
+    {
+        time_t timer;
+        struct tm *timeinfo;
+        std::stringstream csv_name;
+        char time_string[20];
+
+        csv_name << log_file << "_";
+        
+        time(&timer);
+        timeinfo = localtime(&timer);
+        strftime(time_string, 20, "%F_%T", timeinfo);
+        
+        csv_name << time_string;
+
+        freopen((char *)csv_name.str().c_str(), "w", stdout);
+
+    }
 
     ifname.assign(new_network);
     device_id = new_device_id;
@@ -23,7 +71,23 @@ CanDriver::CanDriver(std::string new_network, __u32 new_device_id)
 CanDriver::CanDriver(__u32 new_device_id)
 {
     if (DEBUG)
-        freopen((char *)log_file.c_str(), "w", stdout);
+    {
+        time_t timer;
+        struct tm *timeinfo;
+        std::stringstream csv_name;
+        char time_string[20];
+
+        csv_name << log_file << "_";
+        
+        time(&timer);
+        timeinfo = localtime(&timer);
+        strftime(time_string, 20, "%F_%T", timeinfo);
+        
+        csv_name << time_string;
+
+        freopen((char *)csv_name.str().c_str(), "w", stdout);
+
+    }
 
     device_id = new_device_id;
 }
