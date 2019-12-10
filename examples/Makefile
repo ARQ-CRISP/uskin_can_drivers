@@ -26,10 +26,10 @@ main.o: main.cpp
 
 
 clean:
-	$(RM) $(OBJS)
+	$(RM) $(OBJS) *.output *.csv
 
 distclean: clean
 	$(RM) can_communication
 
 logclean:
-	$(RM) CanDriver_log.output uSkinCanDriver_log.output
+	$(RM) *.output
