@@ -3,69 +3,59 @@
 
 #include "../include/uskinCanDriver.h"
 
-/* void afonso_master(std::vector <struct _single_node_reading> * reading)
-{
-  printf("\n<----------------------------------------------->\n");
-  for (double i = 1; i <= 6;  i++) {
-      for (double j = 4; j > 0; j--) {
-        float norm = (((float)reading->back().z_data - 18300)/ (25500 - 18300))*100;
-			printf("%.0f", norm);
-			if ((int)norm/10 == 0) {
-				printf("     ");
-			}else if ((int)norm/100==0) {
-				printf("    ");
-			}else{
-				printf("   ");
-			}
-      reading->pop_back();
-		}
-		printf("\n");
-	}
-} */
 
+// Check the results of this algorithm in outputed log file!!
 int main()
 {
+  // Will connect to "can0" device by default.
+  // By default 24 nodes are considered (6x4), but you can provide a different number (check constructors)
+  UskinSensor *uskin = new UskinSensor; 
+  _uskin_node_time_unit_reading *current_node_reading;
 
-  UskinSensor * uskin = new UskinSensor; // Will connect to "can0" device by default
-  time_t timer;
-
-  // Used if we wish to filter incoming messages
-  /*  struct can_filter rfilter[1];
-
-  rfilter[0].can_id = 0x135;
-  rfilter[0].can_mask = CAN_SFF_MASK; */
-  //rfilter[1].can_id   = 0x101;
-  //rfilter[1].can_mask = CAN_SFF_MASK;
-  time(&timer);
-  uskin->SaveData("uskin_data_"+ std::to_string(timer) + ".csv"); //Only called once, will save output to a csv file
-
-
-  if (uskin->StartSensor())
+  // Start the uskin sensor
+  if (!uskin->StartSensor())
   {
-    uskin->CalibrateSensor(); // Calibrates sensor and data is stored normalized
-    uskin->GetFrameData_xyzValues(); // Get data. If SavaData was called, data is stored in file
-    //uskin->PrintData();
+    printf("Problems initiating the sensor!");
+    delete uskin;
 
-    sleep(2);
-
-    uskin->GetFrameData_xyzValues();
-
-
-    uskin->StopSensor();
+    return (-1);
   }
 
-  delete uskin;
+  // Calibrate the sensor
+  uskin->CalibrateSensor();
 
+  // Save data to CSV file
+  uskin->SaveData("uskin_data");
+  uskin->SaveNormalizedData("uskin_normalized_data");
 
+  uskin->RetrieveFrameData(); //Retrieves data and saves it in csv file
 
-  /*  while(true)
+  for (int i = 0; i <= uskin->GetUskinFrameSize(); i++) // GetUskinFrameSize returns number of sensor nodes
   {
-      std::vector <struct _single_node_reading> instant_reading;
-      driver.read_data(&instant_reading);
+    if (current_node_reading = uskin->GetNodeData_xyzValues(i)) //Get magnet displacement values for each node 
+      printf("%s\n", current_node_reading->to_str().c_str()); // Currently this is being printed to log file
 
-      afonso_master(&instant_reading);
+  }
 
-  } */
+  uskin->NormalizeData(); // Normalized data with calibrated values and store it in csv file
+  
+  // Sleep and repeat the process
+  sleep(2);
+
+  uskin->RetrieveFrameData();
+
+  for (int i = 0; i <= uskin->GetUskinFrameSize(); i++)
+  {
+    if (current_node_reading = uskin->GetNodeData_xyzValues(i))
+      printf("%s", current_node_reading->to_str().c_str());
+    
+  }
+
+  uskin->NormalizeData();
+
+  uskin->StopSensor();
+
+  delete uskin;
 
   exit(0);
 }

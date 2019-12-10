@@ -1,3 +1,17 @@
+/*
+ * Copyright: (C) 2019 CRISP, Advanced Robotics at Queen Mary,
+ *                Queen Mary University of London, London, UK
+ * Author: Rodrigo Neves Zenha <r.neveszenha@qmul.ac.uk>
+ * CopyPolicy: Released under the terms of the GNU GPL v3.0.
+ *
+ */
+/**
+ * \file uskinCanDriver.h
+ *
+ * \author Rodrigo Neves Zenha
+ * \copyright  Released under the terms of the GNU GPL v3.0.
+ */
+
 #ifndef USKINCANDRIVER_H
 #define USKINCANDRIVER_H
 
@@ -12,24 +26,26 @@
 
 #include "can_communication.h" // Our library for can communication
 
-//#define DEBUG 1
-
+// Default for 4x6 uSkin version
 #define USKIN_ROWS 4
 #define USKIN_COLUMNS 6
 
+// Hardcoded values retrieved from trial & error
 #define XNODEMAXREAD 45000
 #define YNODEMAXREAD 23000
-// #define XNODEMAXREAD 51161
-// #define YNODEMAXREAD 25600
 #define ZNODEMAXREAD 25600
-#define ZNODEMINREAD 18300
+
+//#define ZNODEMINREAD 18300 // not used
 
 static unsigned long int **frame_min_reads;
 static int frame_min_reads_size;
 // static unsigned long int **frame_max_reads;
 
-unsigned int convert_16bit_hex_to_dec(__u8 *data);
+//###################### Utils #########################
 
+void open_log_file(std::string file_name);
+
+//###################### Data Structures #########################
 struct _uskin_node_time_unit_reading
 {
   __u32 node_id;
@@ -48,7 +64,7 @@ struct _uskin_node_time_unit_reading
 
   void normalize()
   {
-    if (frame_min_reads_size > sequence) // Validating whether frame_max_reads and frame_min_reads have already been correctly initialized
+    if (frame_min_reads_size > sequence) // Validating if frame_min_reads has already been initialized (from calibration)
     {
       std::stringstream converted_msg;
 
@@ -92,7 +108,7 @@ struct uskin_time_unit_reading
     logInfo(3, "Normalizing data with the following minimum and maximum readings:");
     logInfo(3, "Sizeof frame min reads:" + std::to_string(frame_min_reads_size));
 
-    if (frame_min_reads_size == number_of_nodes) // Validating whether frame_max_reads and frame_min_reads have already been correctly initialized
+    if (frame_min_reads_size == number_of_nodes) // Validating if frame_min_reads_size has already been initialized (from calibration)
     {
       logInfo(3, "Normalizing data with the following minimum and maximum readings:");
       for (int i = 0; i < number_of_nodes; i++)
@@ -107,34 +123,52 @@ struct uskin_time_unit_reading
 
 void NormalizeData(uskin_time_unit_reading *frame);
 
+void storeNodeReading(struct _uskin_node_time_unit_reading *node_reading, struct can_frame *raw_node_reading, int sequence);
+
+//###################### UskinSensor #########################
 class UskinSensor
 {
   // Access specifier
 
 private:
+  // Sensor's frame_size is the total number of sensitive nodes in its frame (frame_columns*frame_rows)
   const int frame_size;
 
   const int frame_columns;
 
   const int frame_rows;
 
-  std::string log_file = "/home/rodrigo/Documents/github/uskin_publisher/src/uskin_ros_publisher/log_files/uSkinCanDriver_log.output";
+  // Log file
+  std::string log_file = "uSkinCanDriver_log";
+  // std::string log_file = "../log_files/uSkinCanDriver_log_";
 
+  // Driver for CAN communication
   CanDriver *driver;
 
+  // Flags if data has been properly started
   int sensor_has_started = 0;
 
-  int data_is_being_saved = 0;
-
+  // Flags if sensor has been calibrated
   int sensor_is_calibrated = 0;
 
-  std::ofstream csv_file;
+  // Flags if sensor is being stored in CSV file
+  int data_is_being_saved = 0;
 
+  int normalized_data_is_being_saved = 0;
+
+  // CSV file for storing all data retrieved
+  std::ofstream csv_file, normalized_csv_file;
+
+  // Sensor's readings from all the sensitive nodes that compose it's frame
   uskin_time_unit_reading *frame_reading;
+
+  void initializeCSVdataStructure(std::ofstream *csv);
 
 public:
   UskinSensor();
+  UskinSensor(std::string new_log_file);
   UskinSensor(int column_nodes, int row_nodes);
+  UskinSensor(int column_nodes, int row_nodes, std::string new_log_file);
   ~UskinSensor();
 
   int StartSensor();
@@ -145,19 +179,21 @@ public:
 
   void RetrieveFrameData();
 
-  //uskin_time_unit_reading * GetFrameData_xyzValues();
   _uskin_node_time_unit_reading *GetNodeData_xyzValues(int node);
   uskin_time_unit_reading *GetFrameData_xValues();
   uskin_time_unit_reading *GetFrameData_yValues();
   uskin_time_unit_reading *GetFrameData_zValues();
 
-  uskin_time_unit_reading *GetNodeData_xValues(int node); // TODO convert node to 16bit hex
-  uskin_time_unit_reading *GetNodeData_yValues(int node); // TODO convert node to 16bit hex
-  uskin_time_unit_reading *GetNodeData_zValues(int node); // TODO convert node to 16bit hex
+  // uskin_time_unit_reading *GetNodeData_xValues(int node); // TODO convert node to 16bit hex
+  // uskin_time_unit_reading *GetNodeData_yValues(int node); // TODO convert node to 16bit hex
+  // uskin_time_unit_reading *GetNodeData_zValues(int node); // TODO convert node to 16bit hex
 
   void PrintData();
   void SaveData();
   void SaveData(std::string filename);
+
+  void SaveNormalizedData();
+  void SaveNormalizedData(std::string filename);
 
   bool get_sensor_status();
 
@@ -165,7 +201,8 @@ public:
 
   bool get_sensor_saved_data_status();
 
-  void retrieveSensorMinMaxReadings(int number_of_readings);
+  void retrieveSensorMinReadings(int number_of_readings);
+  void NormalizeData();
 };
 
 #endif

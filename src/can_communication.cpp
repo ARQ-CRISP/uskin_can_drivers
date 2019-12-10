@@ -1,100 +1,42 @@
+/*
+ * Copyright: (C) 2019 CRISP, Advanced Robotics at Queen Mary,
+ *                Queen Mary University of London, London, UK
+ * Author: Rodrigo Neves Zenha <r.neveszenha@qmul.ac.uk>
+ * CopyPolicy: Released under the terms of the GNU GPL v3.0.
+ *
+ */
+/**
+ * \file can_communication.cpp
+ *
+ * \author Rodrigo Neves Zenha
+ * \copyright  Released under the terms of the GNU GPL v3.0.
+ */
+
 #include "../include/can_communication.h"
 
-CanDriver::CanDriver()
-{
-    if (DEBUG)
-    {
-        time_t timer;
-        struct tm *timeinfo;
-        std::stringstream csv_name;
-        char time_string[20];
+// CanDriver constructors: It is possible to provide CAN network and device CAN ID of the sensor
+CanDriver::CanDriver(){};
 
-        csv_name << log_file << "_";
-        
-        time(&timer);
-        timeinfo = localtime(&timer);
-        strftime(time_string, 20, "%F_%T", timeinfo);
-        
-        csv_name << time_string;
-
-        freopen((char *)csv_name.str().c_str(), "w", stdout);
-
-    }
-};
 CanDriver::CanDriver(std::string new_network)
 {
-    if (DEBUG)
-    {
-        time_t timer;
-        struct tm *timeinfo;
-        std::stringstream csv_name;
-        char time_string[20];
-
-        csv_name << log_file << "_";
-        
-        time(&timer);
-        timeinfo = localtime(&timer);
-        strftime(time_string, 20, "%F_%T", timeinfo);
-        
-        csv_name << time_string;
-
-        freopen((char *)csv_name.str().c_str(), "w", stdout);
-
-    }
-
     ifname.assign(new_network);
 };
 CanDriver::CanDriver(std::string new_network, __u32 new_device_id)
 {
-    if (DEBUG)
-    {
-        time_t timer;
-        struct tm *timeinfo;
-        std::stringstream csv_name;
-        char time_string[20];
-
-        csv_name << log_file << "_";
-        
-        time(&timer);
-        timeinfo = localtime(&timer);
-        strftime(time_string, 20, "%F_%T", timeinfo);
-        
-        csv_name << time_string;
-
-        freopen((char *)csv_name.str().c_str(), "w", stdout);
-
-    }
-
     ifname.assign(new_network);
     device_id = new_device_id;
 }
+
 CanDriver::CanDriver(__u32 new_device_id)
 {
-    if (DEBUG)
-    {
-        time_t timer;
-        struct tm *timeinfo;
-        std::stringstream csv_name;
-        char time_string[20];
-
-        csv_name << log_file << "_";
-        
-        time(&timer);
-        timeinfo = localtime(&timer);
-        strftime(time_string, 20, "%F_%T", timeinfo);
-        
-        csv_name << time_string;
-
-        freopen((char *)csv_name.str().c_str(), "w", stdout);
-
-    }
-
     device_id = new_device_id;
 }
+
 CanDriver::~CanDriver(){};
 
-//###################### UTILS #########################
+//###################### Utils #########################
 
+// Loging utils
 void logInfo(int identation_level, std::string info)
 {
     if (DEBUG)
@@ -115,19 +57,46 @@ void logError(int identation_level, std::string error)
     }
 }
 
+// Converting Hex MSB and LSB (2 bytes) to Dec
+unsigned int convert_16bit_hex_to_dec(__u8 *data)
+{
+    return long(data[0] << 8 | data[1]);
+}
+
+unsigned long convert_dec_to_24bit_hex(unsigned int data)
+{
+    return long((data / 256) * 100 + ((data % 256) / 16) * 10 + ((data % 256) % 16));
+}
+
+// Convert can_frame data structure to string
 std::string canFrameToString(can_frame *message)
 {
     std::stringstream converted_msg;
 
     converted_msg << "Received message from device with CAN ID: " << std::hex << message->can_id << "; With data: ";
 
-    for (int i = 1; i < 7; i++)
+    for (int i = 1; i < 7; i++) // Reading bytes 2-7 (1st and 8th bytes unused by the sensor's protocol)
         converted_msg << std::hex << int(message->data[i]) << " ";
 
     return converted_msg.str();
 }
 
+bool checkMessagesIdOrder(canid_t current_can_id, canid_t previous_can_id)
+{
+    if ((((current_can_id % 100) % 10) > ((previous_can_id % 100) % 10)) || ((((current_can_id % 100) % 10) == ((previous_can_id % 100) % 10)) && ((current_can_id % 100) > (previous_can_id % 100))))
+    {
+        //printf("\n%d", current_can_id % 100 % 10);
+        //printf("\n%d", current_can_id % 100);
+        //printf("\n%d", previous_can_id % 100 % 10);
+        //printf("\n%d\n", previous_can_id % 100);
+
+        return true;
+    }
+    return false;
+}
+
 //###################### CanDriver #########################
+// Bind connection to the sensor
 int CanDriver::openConnection()
 {
 
@@ -136,7 +105,7 @@ int CanDriver::openConnection()
     if ((s = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0)
     {
         logError(2, "Error while opening socket");
-        logInfo(1, "<< CanDriver::open_connection(-1)");
+        logInfo(1, "<< CanDriver::open_connection()");
 
         return 0;
     }
@@ -152,7 +121,7 @@ int CanDriver::openConnection()
     if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
         logError(2, "Error in socket bind");
-        logInfo(1, "<< CanDriver::open_connection(-2)");
+        logInfo(1, "<< CanDriver::open_connection()");
 
         return 0;
     }
@@ -162,6 +131,7 @@ int CanDriver::openConnection()
     return 1;
 }
 
+// Send message to the sensor
 int CanDriver::sendMessage(can_frame sending_frame)
 {
     int return_value = 1;
@@ -184,6 +154,7 @@ int CanDriver::sendMessage(can_frame sending_frame)
     return return_value;
 }
 
+// Read message from the sensor
 int CanDriver::readMessage(can_frame *receiving_frame)
 {
     logInfo(2, ">> CanDriver::read_message()");
@@ -220,6 +191,7 @@ int CanDriver::readMessage(can_frame *receiving_frame)
     return 1;
 }
 
+// Request the sensor to start reading data
 int CanDriver::requestData()
 {
     int return_value = 1;
@@ -228,7 +200,7 @@ int CanDriver::requestData()
     struct can_frame sending_frame;
 
     sending_frame.can_id = device_id;
-    sending_frame.can_dlc = 2;
+    sending_frame.can_dlc = 2; /* frame payload length in byte (0 .. 8) */
     sending_frame.data[0] = 0x07;
     sending_frame.data[1] = 0x00;
 
@@ -247,13 +219,14 @@ int CanDriver::requestData()
     return return_value;
 }
 
+// Request the sensor to stop reading data
 void CanDriver::stopData()
 {
     logInfo(1, ">> CanDriver::stop_data()");
     struct can_frame sending_frame;
 
     sending_frame.can_id = device_id;
-    sending_frame.can_dlc = 2;
+    sending_frame.can_dlc = 2; /* frame payload length in byte (0 .. 8) */
     sending_frame.data[0] = 0x07;
     sending_frame.data[1] = 0x01;
 
@@ -266,13 +239,14 @@ void CanDriver::stopData()
     return;
 }
 
+// Read a stream of data form the sensor. Stream lenght is defined by frame_size
 void CanDriver::readData(can_frame **receiving_frame, int frame_size)
 {
     logInfo(1, ">> CanDriver::read_data()");
 
     logInfo(2, "Reading data with frame size " + std::to_string(frame_size));
 
-    if (!data_requested)
+    if (!data_requested) // check if data has already been requested
     {
         logError(2, "You must first request data from the sensor");
         logInfo(1, "<< CanDriver::read_data()");
@@ -286,15 +260,41 @@ void CanDriver::readData(can_frame **receiving_frame, int frame_size)
         logInfo(2, "New filter now set.");
     }
 
-    for (int i = 0; i < frame_size; i++)
+    receiving_frame[0] = new can_frame;
+    if (!CanDriver::readMessage(receiving_frame[0]))
+    {
+        logError(2, "Problems reading data");
+    }
+
+    // Check if first message read has reight ID
+    while (convert_dec_to_24bit_hex(receiving_frame[0]->can_id) != 100)
+    {
+        logError(2, "The expected message has the wrong ID");
+        // Keep searching for the right message ID
+        if (!CanDriver::readMessage(receiving_frame[0]))
+        {
+            logError(2, "Problems reading data");
+        }
+    }
+
+    for (int i = 1; i < frame_size; i++) // frame_size is number of can frames the users wants to read before completion
     {
         receiving_frame[i] = new can_frame;
         if (!CanDriver::readMessage(receiving_frame[i]))
         {
             logError(2, "Problems reading data");
         }
-        /* else
-            logInfo(2, canFrameToString(receiving_frame[i])); */
+        if (!checkMessagesIdOrder(convert_dec_to_24bit_hex(receiving_frame[i]->can_id), convert_dec_to_24bit_hex(receiving_frame[i - 1]->can_id)))
+        {
+            logError(2, "Problems with messages order");
+            for (int j = 0; j <= i; j++)
+            {
+                delete receiving_frame[j];
+            }
+
+            readData(receiving_frame, frame_size);
+            break;
+        }
     }
 
     logInfo(1, "<< CanDriver::read_data()");
@@ -302,6 +302,7 @@ void CanDriver::readData(can_frame **receiving_frame, int frame_size)
     return;
 }
 
+// Read a filtered stream of data form the sensor. Stream lenght is defined by frame_size.
 /* can_frame **CanDriver::readData(int number_of_filters, struct can_filter *rfilter)
 {
     logInfo(1, ">> CanDriver::read_data()");
