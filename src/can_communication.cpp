@@ -81,15 +81,12 @@ std::string canFrameToString(can_frame *message)
     return converted_msg.str();
 }
 
+// Checks if two can_id's are consequetive to each other
 bool checkMessagesIdOrder(canid_t current_can_id, canid_t previous_can_id)
 {
+    // Logic to check if previous_can_id precedes current_can_id
     if ((((current_can_id % 100) % 10) > ((previous_can_id % 100) % 10)) || ((((current_can_id % 100) % 10) == ((previous_can_id % 100) % 10)) && ((current_can_id % 100) > (previous_can_id % 100))))
     {
-        //printf("\n%d", current_can_id % 100 % 10);
-        //printf("\n%d", current_can_id % 100);
-        //printf("\n%d", previous_can_id % 100 % 10);
-        //printf("\n%d\n", previous_can_id % 100);
-
         return true;
     }
     return false;
@@ -266,7 +263,7 @@ void CanDriver::readData(can_frame **receiving_frame, int frame_size)
         logError(2, "Problems reading data");
     }
 
-    // Check if first message read has reight ID
+    // Check if first message read has right ID
     while (convert_dec_to_24bit_hex(receiving_frame[0]->can_id) != 100)
     {
         logError(2, "The expected message has the wrong ID");
