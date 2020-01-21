@@ -121,8 +121,6 @@ struct uskin_time_unit_reading
   }
 };
 
-void NormalizeData(uskin_time_unit_reading *frame);
-
 void storeNodeReading(struct _uskin_node_time_unit_reading *node_reading, struct can_frame *raw_node_reading, int sequence);
 
 //###################### UskinSensor #########################
@@ -202,7 +200,7 @@ public:
   bool get_sensor_saved_data_status();
 
   void retrieveSensorMinReadings(int number_of_readings);
-  void NormalizeData();
+  bool NormalizeData();
 };
 
 #endif

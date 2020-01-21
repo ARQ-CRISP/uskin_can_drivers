@@ -32,7 +32,7 @@ void open_log_file(std::string file_name)
 
     time(&timer);
     timeinfo = localtime(&timer);
-    strftime(time_string, 20, "%F_%T", timeinfo);
+    strftime(time_string, 20, "%F-%H-%M-%S", timeinfo);
 
     complete_file_name << time_string << ".output";
 
@@ -497,7 +497,7 @@ void UskinSensor::retrieveSensorMinReadings(int number_of_readings)
 }
 
 // Normalize data using MinMax strategy from values minimum readings acquired during calibration
-void UskinSensor::NormalizeData()
+bool UskinSensor::NormalizeData()
 {
   logInfo(1, ">> UskinSensor::NormalizeData()");
 
@@ -506,10 +506,12 @@ void UskinSensor::NormalizeData()
     logInfo(2, "Attempting to normalize uskin frame readings...");
     frame_reading->normalize();
     SaveNormalizedData();
+    logInfo(1, "<< UskinSensor::NormalizeData()");
+    return true;
   }
 
   logInfo(1, "<< UskinSensor::NormalizeData()");
-  return;
+  return false;
 }
 
 // Create necessary columns in CSV file
