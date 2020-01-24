@@ -64,6 +64,9 @@ private:
 
     bool is_filter_set = false; // Flags if there is any filter applied to the socket (for incoming data)
 
+    can_frame temporary_reading;
+    bool temporary_reading_available = false;
+
     int sendMessage(can_frame sending_frame);
     int readMessage(can_frame *receiving_frame);
 
@@ -80,7 +83,7 @@ public:
 
     void stopData();
 
-    void readData(can_frame **receiving_frame, int frame_size);
+    int readData(can_frame **receiving_frame, int frame_size, int max_can_ID);
 
     //can_frame ** readData(int number_of_filters, struct can_filter *rfilter); // This method will allow to filter incoming data
 };

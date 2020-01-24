@@ -43,10 +43,10 @@ void open_log_file(std::string file_name)
 //###################### Data Structures #########################
 
 // Store can_frame data in _uskin_node_time_unit_reading structure
-void storeNodeReading(struct _uskin_node_time_unit_reading *node_reading, struct can_frame *raw_node_reading, int sequence)
+void storeNodeReading(struct _uskin_node_time_unit_reading *node_reading, struct can_frame *raw_node_reading, int index)
 {
   node_reading->node_id = raw_node_reading->can_id;
-  node_reading->sequence = sequence;
+  node_reading->index = index;
   node_reading->x_value = convert_16bit_hex_to_dec(&raw_node_reading->data[1]);
   node_reading->y_value = convert_16bit_hex_to_dec(&raw_node_reading->data[3]);
   node_reading->z_value = convert_16bit_hex_to_dec(&raw_node_reading->data[5]);
@@ -65,6 +65,7 @@ UskinSensor::UskinSensor() : frame_columns(USKIN_COLUMNS), frame_rows(USKIN_ROWS
 
   frame_reading = new uskin_time_unit_reading;
   frame_reading->instant_reading = new struct _uskin_node_time_unit_reading[frame_size];
+  frame_reading->number_of_nodes = frame_size;
 
   return;
 };
@@ -77,6 +78,7 @@ UskinSensor::UskinSensor(std::string new_log_file) : frame_columns(USKIN_COLUMNS
 
   frame_reading = new uskin_time_unit_reading;
   frame_reading->instant_reading = new struct _uskin_node_time_unit_reading[frame_size];
+  frame_reading->number_of_nodes = frame_size;
 
   return;
 };
@@ -89,6 +91,8 @@ UskinSensor::UskinSensor(int column_nodes, int row_nodes) : frame_columns(column
 
   frame_reading = new uskin_time_unit_reading;
   frame_reading->instant_reading = new struct _uskin_node_time_unit_reading[frame_size];
+  frame_reading->number_of_nodes = frame_size;
+
 
   return;
 };
@@ -101,6 +105,7 @@ UskinSensor::UskinSensor(int column_nodes, int row_nodes, std::string new_log_fi
 
   frame_reading = new uskin_time_unit_reading;
   frame_reading->instant_reading = new struct _uskin_node_time_unit_reading[frame_size];
+  frame_reading->number_of_nodes = frame_size;
 
   return;
 };
@@ -125,6 +130,26 @@ UskinSensor::~UskinSensor()
   if (data_is_being_saved)
     csv_file.close();
 };
+
+int UskinSensor::convertCanIDtoIndex(canid_t can_id)
+{
+  int index;
+
+  // Convert canID to a frame_reading valid index
+  index = (convert_dec_to_24bit_hex(can_id) % 10) * frame_rows + (convert_dec_to_24bit_hex(can_id) / 10 % 10);
+
+  return index;
+}
+
+int UskinSensor::convertIndextoCanID(int index)
+{
+  canid_t can_id;
+
+  // Convert a frame_reading valid index to canID
+  can_id = (index % frame_rows) * 10 + (index / frame_rows) + 100;
+
+  return can_id;
+}
 
 // Open connection and request data
 int UskinSensor::StartSensor()
@@ -225,8 +250,9 @@ void UskinSensor::RetrieveFrameData()
 
   // to store raw can_frame readings
   struct can_frame *raw_data[frame_size];
+  int n_frames_read;
 
-  frame_reading->clear();
+  // frame_reading->clear();
 
   if (!sensor_has_started)
   {
@@ -234,15 +260,15 @@ void UskinSensor::RetrieveFrameData()
     return;
   }
 
-  driver->readData(raw_data, frame_size);
+  n_frames_read = driver->readData(raw_data, frame_size, convertIndextoCanID(frame_size-1));
 
-  for (int i = 0; i < frame_size; i++)
+  for (int i = 0; i < n_frames_read; i++)
   {
     // Convert and store raw can_frame data
-    storeNodeReading(&frame_reading->instant_reading[i], raw_data[i], i);
+    int index = convertCanIDtoIndex(raw_data[i]->can_id);
+    storeNodeReading(&frame_reading->instant_reading[index], raw_data[i], index);
   }
 
-  frame_reading->number_of_nodes = frame_size;
 
   // Attach a timestamp to data
   gettimeofday(&frame_reading->timestamp, NULL);
@@ -273,25 +299,50 @@ _uskin_node_time_unit_reading *UskinSensor::GetNodeData_xyzValues(int node)
   return &frame_reading->instant_reading[node];
 };
 
+uskin_time_unit_reading UskinSensor::GetFrameData_xyzValues()
+{
+  logInfo(1, ">> UskinSensor::GetFrameData_xyzValues()");
+
+  return *frame_reading;
+
+  logInfo(1, "<< UskinSensor::GetNodeData_xGetFrameData_xyzValuesyzValues()");
+}
+
 // uskin_time_unit_reading *UskinSensor::GetNodeData_xValues(int node){}; // TODO
 // uskin_time_unit_reading *UskinSensor::GetNodeData_yValues(int node){}; // TODO
 // uskin_time_unit_reading *UskinSensor::GetNodeData_zValues(int node){}; // TODO
 
-// Print frame reading contents
-void UskinSensor::PrintData()
-{
-  logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp.tv_sec))) + "." + std::to_string(frame_reading->timestamp.tv_usec) + "\n");
-
-  for (int i = 0; i < frame_reading->number_of_nodes; i++)
+  // Print frame reading contents
+  void UskinSensor::PrintData()
   {
-    std::stringstream message;
+    logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp.tv_sec))) + "." + std::to_string(frame_reading->timestamp.tv_usec) + "\n");
 
-    message << "CAN ID: " << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "  X:  " << frame_reading->instant_reading[i].x_value << "  Y:  " << frame_reading->instant_reading[i].y_value << "  Z:  " << frame_reading->instant_reading[i].z_value << std::endl;
-    logInfo(4, message.str());
+    for (int i = 0; i < frame_size; i++)
+    {
+      std::stringstream message;
+
+      message << "CAN ID: " << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "  X:  " << frame_reading->instant_reading[i].x_value << "  Y:  " << frame_reading->instant_reading[i].y_value << "  Z:  " << frame_reading->instant_reading[i].z_value << std::endl;
+      logInfo(4, message.str());
+    }
+
+    return;
   }
 
-  return;
-}
+  // Print frame reading contents
+  void UskinSensor::PrintNormalizedData()
+  {
+    logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp.tv_sec))) + "." + std::to_string(frame_reading->timestamp.tv_usec) + "\n");
+
+    for (int i = 0; i < frame_size; i++)
+    {
+      std::stringstream message;
+
+      message << "CAN ID: " << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "  X:  " << frame_reading->instant_reading[i].x_value_normalized << "  Y:  " << frame_reading->instant_reading[i].y_value_normalized << "  Z:  " << frame_reading->instant_reading[i].z_value_normalized << std::endl;
+      logInfo(4, message.str());
+    }
+
+    return;
+  }
 
 // Store retrieved data in existing CSV file.
 void UskinSensor::SaveData()
@@ -309,7 +360,7 @@ void UskinSensor::SaveData()
     csv_file << std::string(time_str) << "." << std::to_string(frame_reading->timestamp.tv_usec);
 
     // Append readings
-    for (int i = 0; i < frame_reading->number_of_nodes; i++)
+    for (int i = 0; i < frame_size; i++)
     {
       csv_file << "," << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "," << frame_reading->instant_reading[i].x_value << "," << frame_reading->instant_reading[i].y_value << "," << frame_reading->instant_reading[i].z_value;
     }
@@ -385,20 +436,20 @@ void UskinSensor::SaveNormalizedData()
     normalized_csv_file << std::string(time_str) << "." << std::to_string(frame_reading->timestamp.tv_usec);
 
     // Append readings
-    for (int i = 0; i < frame_reading->number_of_nodes; i++)
+    for (int i = 0; i < frame_size; i++)
     {
-      normalized_csv_file << "," << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "," << frame_reading->instant_reading[i].x_value << "," << frame_reading->instant_reading[i].y_value << "," << frame_reading->instant_reading[i].z_value;
+      normalized_csv_file << "," << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "," << frame_reading->instant_reading[i].x_value_normalized << "," << frame_reading->instant_reading[i].y_value_normalized << "," << frame_reading->instant_reading[i].z_value_normalized;
     }
 
     normalized_csv_file << std::endl;
 
     logInfo(2, "Data has been recorded");
-    PrintData();
+    PrintNormalizedData();
   }
   else // No csv file was opened, printing the data to log file
   {
     logInfo(2, "No CSV file has been opened yet!");
-    PrintData();
+    PrintNormalizedData();
   }
 
   logInfo(1, "<< UskinSensor::SaveNormalizedData()");
