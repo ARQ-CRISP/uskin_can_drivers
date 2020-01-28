@@ -32,7 +32,7 @@
 
 // Hardcoded values retrieved from trial & error
 #define XNODEMAXREAD 45000
-#define YNODEMAXREAD 23000
+#define YNODEMAXREAD 25000
 #define ZNODEMAXREAD 25600
 
 //#define ZNODEMINREAD 18300 // not used
@@ -192,7 +192,9 @@ public:
   void RetrieveFrameData();
 
   _uskin_node_time_unit_reading *GetNodeData_xyzValues(int node);
-  uskin_time_unit_reading GetFrameData_xyzValues();
+  _uskin_node_time_unit_reading *GetFrameData();
+
+  uskin_time_unit_reading *GetFrameData_xValues();
   uskin_time_unit_reading *GetFrameData_yValues();
   uskin_time_unit_reading *GetFrameData_zValues();
 

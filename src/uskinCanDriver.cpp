@@ -93,7 +93,6 @@ UskinSensor::UskinSensor(int column_nodes, int row_nodes) : frame_columns(column
   frame_reading->instant_reading = new struct _uskin_node_time_unit_reading[frame_size];
   frame_reading->number_of_nodes = frame_size;
 
-
   return;
 };
 
@@ -260,7 +259,7 @@ void UskinSensor::RetrieveFrameData()
     return;
   }
 
-  n_frames_read = driver->readData(raw_data, frame_size, convertIndextoCanID(frame_size-1));
+  n_frames_read = driver->readData(raw_data, frame_size, convertIndextoCanID(frame_size - 1));
 
   for (int i = 0; i < n_frames_read; i++)
   {
@@ -268,7 +267,6 @@ void UskinSensor::RetrieveFrameData()
     int index = convertCanIDtoIndex(raw_data[i]->can_id);
     storeNodeReading(&frame_reading->instant_reading[index], raw_data[i], index);
   }
-
 
   // Attach a timestamp to data
   gettimeofday(&frame_reading->timestamp, NULL);
@@ -299,50 +297,47 @@ _uskin_node_time_unit_reading *UskinSensor::GetNodeData_xyzValues(int node)
   return &frame_reading->instant_reading[node];
 };
 
-uskin_time_unit_reading UskinSensor::GetFrameData_xyzValues()
+_uskin_node_time_unit_reading *UskinSensor::GetFrameData()
 {
-  logInfo(1, ">> UskinSensor::GetFrameData_xyzValues()");
+  logInfo(1, ">> UskinSensor::GetFrameData()");
 
-  return *frame_reading;
-
-  logInfo(1, "<< UskinSensor::GetNodeData_xGetFrameData_xyzValuesyzValues()");
+  return frame_reading->instant_reading;
+  logInfo(1, "<< UskinSensor::GetFrameData()");
 }
-
-// uskin_time_unit_reading *UskinSensor::GetNodeData_xValues(int node){}; // TODO
 // uskin_time_unit_reading *UskinSensor::GetNodeData_yValues(int node){}; // TODO
 // uskin_time_unit_reading *UskinSensor::GetNodeData_zValues(int node){}; // TODO
 
-  // Print frame reading contents
-  void UskinSensor::PrintData()
+// Print frame reading contents
+void UskinSensor::PrintData()
+{
+  logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp.tv_sec))) + "." + std::to_string(frame_reading->timestamp.tv_usec) + "\n");
+
+  for (int i = 0; i < frame_size; i++)
   {
-    logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp.tv_sec))) + "." + std::to_string(frame_reading->timestamp.tv_usec) + "\n");
+    std::stringstream message;
 
-    for (int i = 0; i < frame_size; i++)
-    {
-      std::stringstream message;
-
-      message << "CAN ID: " << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "  X:  " << frame_reading->instant_reading[i].x_value << "  Y:  " << frame_reading->instant_reading[i].y_value << "  Z:  " << frame_reading->instant_reading[i].z_value << std::endl;
-      logInfo(4, message.str());
-    }
-
-    return;
+    message << "CAN ID: " << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "  X:  " << frame_reading->instant_reading[i].x_value << "  Y:  " << frame_reading->instant_reading[i].y_value << "  Z:  " << frame_reading->instant_reading[i].z_value << std::endl;
+    logInfo(4, message.str());
   }
 
-  // Print frame reading contents
-  void UskinSensor::PrintNormalizedData()
+  return;
+}
+
+// Print frame reading contents
+void UskinSensor::PrintNormalizedData()
+{
+  logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp.tv_sec))) + "." + std::to_string(frame_reading->timestamp.tv_usec) + "\n");
+
+  for (int i = 0; i < frame_size; i++)
   {
-    logInfo(3, "Message recieved at " + std::string(asctime(gmtime(&frame_reading->timestamp.tv_sec))) + "." + std::to_string(frame_reading->timestamp.tv_usec) + "\n");
+    std::stringstream message;
 
-    for (int i = 0; i < frame_size; i++)
-    {
-      std::stringstream message;
-
-      message << "CAN ID: " << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "  X:  " << frame_reading->instant_reading[i].x_value_normalized << "  Y:  " << frame_reading->instant_reading[i].y_value_normalized << "  Z:  " << frame_reading->instant_reading[i].z_value_normalized << std::endl;
-      logInfo(4, message.str());
-    }
-
-    return;
+    message << "CAN ID: " << std::hex << frame_reading->instant_reading[i].node_id << std::dec << "  X:  " << frame_reading->instant_reading[i].x_value_normalized << "  Y:  " << frame_reading->instant_reading[i].y_value_normalized << "  Z:  " << frame_reading->instant_reading[i].z_value_normalized << std::endl;
+    logInfo(4, message.str());
   }
+
+  return;
+}
 
 // Store retrieved data in existing CSV file.
 void UskinSensor::SaveData()
