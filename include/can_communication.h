@@ -32,7 +32,7 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 //###################### Utils #########################
 

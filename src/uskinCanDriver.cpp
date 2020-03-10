@@ -242,6 +242,12 @@ void UskinSensor::CalibrateSensor()
   logInfo(1, "<< UskinSensor::CalibrateSensor()");
 };
 
+unsigned long int ** UskinSensor::getCalibrationValues()
+{
+  return frame_min_reads;
+};
+
+
 // Read and store latest sensor's frame reading. It will be stored at uskinCanDrive.frame_reading
 void UskinSensor::RetrieveFrameData()
 {

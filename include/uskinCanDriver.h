@@ -189,6 +189,8 @@ public:
 
   void CalibrateSensor(); // Leaving the sensor untouched for a period of time
 
+  unsigned long int ** getCalibrationValues();
+
   void RetrieveFrameData();
 
   _uskin_node_time_unit_reading *GetNodeData_xyzValues(int node);
