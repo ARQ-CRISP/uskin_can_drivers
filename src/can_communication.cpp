@@ -123,6 +123,24 @@ int CanDriver::openConnection()
         return 0;
     }
 
+    int sock_buf_size;
+    int i = sizeof(sock_buf_size);
+    int nbytes = getsockopt(s, SOL_SOCKET, SO_RCVBUF,
+                            &sock_buf_size, (socklen_t *)&i);
+
+    logInfo(2, "current sock_buf_size" + std::to_string(sock_buf_size));
+
+    sock_buf_size = 0x80000;
+
+    nbytes = setsockopt(s, SOL_SOCKET, SO_RCVBUF,
+                        &sock_buf_size, sizeof(sock_buf_size));
+
+    i = sizeof(sock_buf_size);
+    nbytes = getsockopt(s, SOL_SOCKET, SO_RCVBUF,
+                        &sock_buf_size, (socklen_t *)&i);
+
+    logInfo(2, "new current sock_buf_size" + std::to_string(sock_buf_size));
+
     logInfo(1, "<< CanDriver::open_connection()");
 
     return 1;
@@ -163,6 +181,10 @@ int CanDriver::readMessage(can_frame *receiving_frame)
     //nbytes = read(s, receiving_frame, sizeof(struct can_frame));
     nbytes = recvfrom(s, receiving_frame, sizeof(struct can_frame),
                       0, (struct sockaddr *)&addr, &len);
+
+    struct timeval tv;
+    ioctl(s, SIOCGSTAMP, &tv);
+    logInfo(3, ">> Reading at: " + std::to_string(tv.tv_sec) + "." + std::to_string(tv.tv_usec));
 
     if (nbytes < 0)
     {
@@ -237,9 +259,10 @@ void CanDriver::stopData()
 }
 
 // Read a stream of data form the sensor. Stream lenght is defined by frame_size
-void CanDriver::readData(can_frame **receiving_frame, int frame_size)
+int CanDriver::readData(can_frame **receiving_frame, int frame_size, int max_can_ID)
 {
     logInfo(1, ">> CanDriver::read_data()");
+    int retreived_elements = 0;
 
     logInfo(2, "Reading data with frame size " + std::to_string(frame_size));
 
@@ -247,7 +270,7 @@ void CanDriver::readData(can_frame **receiving_frame, int frame_size)
     {
         logError(2, "You must first request data from the sensor");
         logInfo(1, "<< CanDriver::read_data()");
-        return;
+        return 0;
     }
 
     if (is_filter_set) // reset socket options if no filter is defined
@@ -257,46 +280,71 @@ void CanDriver::readData(can_frame **receiving_frame, int frame_size)
         logInfo(2, "New filter now set.");
     }
 
-    receiving_frame[0] = new can_frame;
-    if (!CanDriver::readMessage(receiving_frame[0]))
+    
+    if (temporary_reading_available)
     {
-        logError(2, "Problems reading data");
+        receiving_frame[0] = new can_frame;
+        *receiving_frame[0] = temporary_reading;
+        temporary_reading_available = false;
+        retreived_elements++;
     }
+
+    // if (!CanDriver::readMessage(receiving_frame[0]))
+    // {
+    //     logError(2, "Problems reading data");
+    //     free(receiving_frame[0]);
+    //     return retreived_elements;
+    // }
+
+    
 
     // Check if first message read has right ID
-    while (convert_dec_to_24bit_hex(receiving_frame[0]->can_id) != 100)
-    {
-        logError(2, "The expected message has the wrong ID");
-        // Keep searching for the right message ID
-        if (!CanDriver::readMessage(receiving_frame[0]))
-        {
-            logError(2, "Problems reading data");
-        }
-    }
+    // while (convert_dec_to_24bit_hex(receiving_frame[0]->can_id) != 100)
+    // {
+    //     logError(2, "The expected message has the wrong ID");
+    //     // Keep searching for the right message ID
+    //     if (!CanDriver::readMessage(receiving_frame[0]))
+    //     {
+    //         logError(2, "Problems reading data");
+    //     }
+    // }
 
-    for (int i = 1; i < frame_size; i++) // frame_size is number of can frames the users wants to read before completion
+    for (int i = retreived_elements; i < frame_size; i++) // frame_size is number of can frames the users wants to read before completion
     {
         receiving_frame[i] = new can_frame;
         if (!CanDriver::readMessage(receiving_frame[i]))
         {
             logError(2, "Problems reading data");
+            free(receiving_frame[i]);
+            return retreived_elements;
         }
-        if (!checkMessagesIdOrder(convert_dec_to_24bit_hex(receiving_frame[i]->can_id), convert_dec_to_24bit_hex(receiving_frame[i - 1]->can_id)))
+
+        if (i > 0 && !checkMessagesIdOrder(convert_dec_to_24bit_hex(receiving_frame[i]->can_id), convert_dec_to_24bit_hex(receiving_frame[i - 1]->can_id)))
         {
             logError(2, "Problems with messages order");
-            for (int j = 0; j <= i; j++)
-            {
-                delete receiving_frame[j];
-            }
+            temporary_reading = *receiving_frame[i];
+            temporary_reading_available = true;
+            free(receiving_frame[i]);
+            // for (int j = 0; j <= i; j++)
+            // {
+            //     delete receiving_frame[j];
+            // }
 
-            readData(receiving_frame, frame_size);
+            // readData(receiving_frame, frame_size);
+            break;
+        }
+        retreived_elements++;
+
+        if (convert_dec_to_24bit_hex(receiving_frame[i]->can_id) == max_can_ID)
+        {
+            logInfo(2, "Message with Maximum CanID has been received ");
             break;
         }
     }
 
     logInfo(1, "<< CanDriver::read_data()");
 
-    return;
+    return retreived_elements;
 }
 
 // Read a filtered stream of data form the sensor. Stream lenght is defined by frame_size.
